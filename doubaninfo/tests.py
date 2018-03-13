@@ -2,6 +2,7 @@ import json
 
 import requests
 from bs4 import BeautifulSoup
+from django.http import JsonResponse
 from django.test import TestCase
 
 # Create your tests here.
@@ -14,4 +15,4 @@ from django.test import TestCase
 #print(smfile.text)
 from doubaninfo.models import gen
 
-print(gen('C:\fakepath\[TJUPT].The.Ex-FileThe.Return.of.the.Exes.2017.WEB-DL.4K.H264.AAC-TJUPT.mp4.torrent'))
+print(JsonResponse(gen('C:\\fakepath\\[TJUPT].The.Ex-FileThe.Return.of.the.Exes.2017.WEB-DL.4K.H264.AAC-TJUPT.mp4.torrent')))

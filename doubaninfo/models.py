@@ -8,6 +8,11 @@ from django.db import models
 
 
 # Create your models here.
+
+def err(code, msg):
+    error = {'errcode': code, 'msg': msg}
+    return error
+
 def torrentname_format(torrent_name):
     if '].' in torrent_name:
         title = torrent_name[torrent_name.find('].') + 2:torrent_name.find('.torrent')]
@@ -23,16 +28,17 @@ def torrentname_format(torrent_name):
 
 
 def gen(torrent_name):
+
     title = torrentname_format(torrent_name)
     t = re.findall(r'[12][90][0-9][0-9]', title)
     if '1080' in t:
         t.remove('1080')
     if len(t) == 0:
-        return -1
+        return err("-999", "暂时无法解析，目前的解析策略必须使用正式的0day名")
     r = requests.get("http://api.douban.com/v2/movie/search?q=" + title[0:title.find(t[len(t) - 1]) - 1])
     search_json = json.loads(r.text)
     if search_json['total'] == 0:
-        return -1
+        return err(-1, "搜索结果为空")
     elif search_json['total'] == 1:
         subject = search_json['subjects'][0]['id']
     else:
@@ -64,4 +70,4 @@ def _extract_poster(imdb_link):
     for image in img_json['mediaviewer']['galleries'][tt]['allImages']:
         if image['id'] == rm:
             return image['src']
-    return -1
+    return err(-2, "获取海报失败")
