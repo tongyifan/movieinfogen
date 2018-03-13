@@ -25,6 +25,8 @@ def torrentname_format(torrent_name):
 def gen(torrent_name):
     title = torrentname_format(torrent_name)
     t = re.findall(r'[12][90][0-9][0-9]', title)
+    if '1080' in t:
+        t.remove('1080')
     if len(t) == 0:
         return -1
     r = requests.get("http://api.douban.com/v2/movie/search?q=" + title[0:title.find(t[len(t) - 1]) - 1])
