@@ -1,5 +1,7 @@
+import configparser
 import re
 
+import pymysql
 import requests
 import json
 
@@ -12,6 +14,7 @@ from django.db import models
 def err(code, msg):
     error = {'errcode': code, 'msg': msg}
     return error
+
 
 def torrentname_format(torrent_name):
     if '].' in torrent_name:
@@ -28,7 +31,6 @@ def torrentname_format(torrent_name):
 
 
 def gen(torrent_name):
-
     title = torrentname_format(torrent_name)
     t = re.findall(r'[12][90][0-9][0-9]', title)
     if '1080' in t:
@@ -51,23 +53,45 @@ def gen(torrent_name):
     data = {'url': douban_baseurl + subject}
     r = requests.post(movieinfogen_api, data)
     movie_info = r.json()
-    movie_info['poster'] = _extract_poster(movie_info['imdb_link'])
-    # todo:将图片传至图床，并在数据库中记录图床中图片编号，与imdb/douban编号一一对应，当数据库中有相应电影海报时直接回报图床链接，提高速度
-    movie_info['ename'] = title
     if movie_info['success']:
+        movie_info['poster'] = _extract_poster(movie_info['imdb_id'])
+        movie_info['format'] = '[img]'+movie_info['poster']+'[/img]\n'+movie_info['format']
+        movie_info['ename'] = title
         return movie_info
+    return err(-1, "API回报错误")
 
-
-def _extract_poster(imdb_link):
-    response = requests.get("http://www.imdb.com/title/tt3843282/")
-    page = BeautifulSoup(response.text, "html5lib")
-    img_url = page.find('div', {'class', 'poster'}).find('a').get("href")
-    tt = img_url[img_url.find('tt'):img_url.find('/media')]
-    rm = img_url[img_url.find('rm'):img_url.find('?')]
-    img_res = requests.get("http://www.imdb.com" + img_url)
-    img = BeautifulSoup(img_res.text, "html5lib").find('script').text.strip().replace("'", "\"")
-    img_json = json.loads(img[img.find('.push(') + 6:len(img) - 2])
-    for image in img_json['mediaviewer']['galleries'][tt]['allImages']:
-        if image['id'] == rm:
-            return image['src']
-    return err(-2, "获取海报失败")
+def _extract_poster(imdb_id):
+    config = configparser.ConfigParser()
+    config.read('pymysql.ini')
+    db = pymysql.connect(config.get('movieposter', 'Hostname'), config.get('movieposter', 'Username'),
+                         config.get('movieposter', 'Password'), 'movieposter')
+    cursor = db.cursor()
+    cursor.execute('SELECT img_link FROM imdbimg WHERE imdb_id = %s', imdb_id)
+    result = cursor.fetchone()
+    if result is None:
+        response = requests.get("http://www.imdb.com/title/" + imdb_id)
+        page = BeautifulSoup(response.text, "html5lib")
+        img_url = page.find('div', {'class', 'poster'}).find('a').get("href")
+        tt = img_url[img_url.find('tt'):img_url.find('/media')]
+        rm = img_url[img_url.find('rm'):img_url.find('?')]
+        img_res = requests.get("http://www.imdb.com" + img_url)
+        img = BeautifulSoup(img_res.text, "html5lib").find('script').text.strip().replace("'mediaviewer'", "\"mediaviewer\"")
+        img_json = json.loads(img[img.find('.push(') + 6:len(img) - 2])
+        for image in img_json['mediaviewer']['galleries'][tt]['allImages']:
+            if image['id'] == rm:
+                url = image['src']
+                headers = {"user-agent": "Mozilla/5.0"}
+                response = requests.get(url=url, headers=headers)
+                files = {'smfile': ('poster.jpg', response.content, 'image/jpeg')}
+                smresponse = requests.post(url="https://sm.ms/api/upload", files=files).json()
+                if smresponse['code'] == "success":
+                    sql = 'INSERT INTO imdbimg(imdb_id, img_link, del_link) VALUES (%s, %s, %s)'
+                    try:
+                        cursor.execute(sql, [imdb_id, smresponse['data']['url'], smresponse['data']['delete']])
+                        db.commit()
+                    except:
+                        db.rollback()
+                return smresponse['data']['url']
+        return err(-2, "获取海报失败")
+    else:
+        return result[0]
