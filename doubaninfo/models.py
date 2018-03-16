@@ -66,7 +66,7 @@ def gen(torrent_name):
 
 def _extract_poster(imdb_id):
     config = configparser.ConfigParser()
-    config.read('../pymysql.ini')
+    config.read('pymysql.ini')
     db = pymysql.connect(config.get('movieposter', 'Hostname'), config.get('movieposter', 'Username'),
                          config.get('movieposter', 'Password'), 'movieposter')
     cursor = db.cursor()
