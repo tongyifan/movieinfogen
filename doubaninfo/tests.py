@@ -9,4 +9,4 @@ from django.test import TestCase
 # Create your tests here.
 from doubaninfo.models import _extract_poster, gen
 
-print(gen("[TJUPT].Suicide.squad.2016.1080p.HC.HDTV.x264.AAC-SS (2).torrent"))
+print(gen("C:\\fakepath\\[TJUPT].Fight.Club.1999.BluRay.720p.x264.DTS-WiKi.torrent"))

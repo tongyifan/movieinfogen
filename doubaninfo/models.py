@@ -47,7 +47,8 @@ def gen(torrent_name):
         for subjects in search_json['subjects']:
             if subjects['year'] == t[len(t) - 1]:
                 subject = subjects['id']
-
+    if 'subject' not in locals().keys():
+        return err(-1, "搜索结果为空")
     movieinfogen_api = "https://api.rhilip.info/tool/movieinfo/gen"
     douban_baseurl = "https://movie.douban.com/subject/"
     data = {'url': douban_baseurl + subject}
