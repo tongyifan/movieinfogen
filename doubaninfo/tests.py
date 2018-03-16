@@ -7,6 +7,6 @@ from django.http import JsonResponse
 from django.test import TestCase
 
 # Create your tests here.
-from doubaninfo.models import _extract_poster
+from doubaninfo.models import _extract_poster, gen
 
-print(_extract_poster('tt1365519'))
+print(gen("[TJUPT].Suicide.squad.2016.1080p.HC.HDTV.x264.AAC-SS (2).torrent"))

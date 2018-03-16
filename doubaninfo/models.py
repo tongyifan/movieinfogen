@@ -54,15 +54,18 @@ def gen(torrent_name):
     r = requests.post(movieinfogen_api, data)
     movie_info = r.json()
     if movie_info['success']:
-        movie_info['poster'] = _extract_poster(movie_info['imdb_id'])
-        movie_info['format'] = '[img]'+movie_info['poster']+'[/img]\n'+movie_info['format']
+        poster = _extract_poster(movie_info['imdb_id'])
+        if poster != 1:
+            movie_info['poster'] = _extract_poster(movie_info['imdb_id'])
+            movie_info['format'] = '[img]' + movie_info['poster'] + '[/img]\n' + movie_info['format']
         movie_info['ename'] = title
         return movie_info
     return err(-1, "API回报错误")
 
+
 def _extract_poster(imdb_id):
     config = configparser.ConfigParser()
-    config.read('pymysql.ini')
+    config.read('../pymysql.ini')
     db = pymysql.connect(config.get('movieposter', 'Hostname'), config.get('movieposter', 'Username'),
                          config.get('movieposter', 'Password'), 'movieposter')
     cursor = db.cursor()
@@ -71,11 +74,15 @@ def _extract_poster(imdb_id):
     if result is None:
         response = requests.get("http://www.imdb.com/title/" + imdb_id)
         page = BeautifulSoup(response.text, "html5lib")
-        img_url = page.find('div', {'class', 'poster'}).find('a').get("href")
+        try:
+            img_url = page.find('div', {'class', 'poster'}).find('a').get("href")
+        except:
+            return 1
         tt = img_url[img_url.find('tt'):img_url.find('/media')]
         rm = img_url[img_url.find('rm'):img_url.find('?')]
         img_res = requests.get("http://www.imdb.com" + img_url)
-        img = BeautifulSoup(img_res.text, "html5lib").find('script').text.strip().replace("'mediaviewer'", "\"mediaviewer\"")
+        img = BeautifulSoup(img_res.text, "html5lib").find('script').text.strip().replace("'mediaviewer'",
+                                                                                          "\"mediaviewer\"")
         img_json = json.loads(img[img.find('.push(') + 6:len(img) - 2])
         for image in img_json['mediaviewer']['galleries'][tt]['allImages']:
             if image['id'] == rm:
