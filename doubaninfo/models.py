@@ -10,6 +10,8 @@ from django.db import models
 
 
 # Create your models here.
+from doubaninfo.gen import Gen
+
 
 def err(code, msg):
     error = {'errcode': code, 'msg': msg}
@@ -30,13 +32,13 @@ def torrentname_format(torrent_name):
     return title
 
 
-def gen(torrent_name):
+def generate(torrent_name):
     title = torrentname_format(torrent_name)
     t = re.findall(r'[12][90][0-9][0-9]', title)
     if '1080' in t:
         t.remove('1080')
     if len(t) == 0:
-        return err("-999", "暂时无法解析，目前的解析策略必须使用正式的0day名")
+        return err("-999", "暂时无法解析，目前的解析策略必须使用标准0day名")
     r = requests.get("http://api.douban.com/v2/movie/search?q=" + title[0:title.find(t[len(t) - 1]) - 1])
     search_json = json.loads(r.text)
     if search_json['total'] == 0:
@@ -49,22 +51,20 @@ def gen(torrent_name):
                 subject = subjects['id']
     if 'subject' not in locals().keys():
         return err(-1, "搜索结果为空")
-    movieinfogen_api = "https://api.rhilip.info/tool/movieinfo/gen"
     douban_baseurl = "https://movie.douban.com/subject/"
-    data = {'url': douban_baseurl + subject}
-    r = requests.post(movieinfogen_api, data)
-    movie_info = r.json()
+    url = douban_baseurl + subject
+    movie_info = Gen(url).gen()
     if movie_info['success']:
-        poster = _extract_poster(movie_info['imdb_id'])
-        if poster != 1:
-            movie_info['poster'] = _extract_poster(movie_info['imdb_id'])
-            movie_info['format'] = '[img]' + movie_info['poster'] + '[/img]\n' + movie_info['format']
+        poster = _extract_poster_douban(subject, movie_info['poster'])
+        movie_info['poster'] = poster
+        movie_info['format'] = '[img]'+poster+movie_info['format'][movie_info['format'].find('[/img]'):]
         movie_info['ename'] = title
         return movie_info
-    return err(-1, "API回报错误")
+    else:
+        return err(-233, movie_info['error'])
 
 
-def _extract_poster(imdb_id):
+def _extract_poster_imdb(imdb_id):
     config = configparser.ConfigParser()
     config.read('pymysql.ini')
     db = pymysql.connect(config.get('movieposter', 'Hostname'), config.get('movieposter', 'Username'),
@@ -101,5 +101,31 @@ def _extract_poster(imdb_id):
                         db.rollback()
                 return smresponse['data']['url']
         return err(-2, "获取海报失败")
+    else:
+        return result[0]
+
+
+def _extract_poster_douban(douban_id, img_link):
+    config = configparser.ConfigParser()
+    config.read('../pymysql.ini')
+    db = pymysql.connect(config.get('movieposter', 'Hostname'), config.get('movieposter', 'Username'),
+                         config.get('movieposter', 'Password'), 'movieposter')
+    cursor = db.cursor()
+    cursor.execute('SELECT img_link FROM doubanimg WHERE doubanid = %s', douban_id)
+    result = cursor.fetchone()
+    if result is None:
+        url = img_link
+        headers = {"user-agent": "Mozilla/5.0"}
+        response = requests.get(url=url, headers=headers)
+        files = {'smfile': ('poster.jpg', response.content, 'image/jpeg')}
+        smresponse = requests.post(url="https://sm.ms/api/upload", files=files).json()
+        if smresponse['code'] == "success":
+            sql = 'INSERT INTO doubanimg(doubanid, img_link, del_link) VALUES (%s, %s, %s)'
+            try:
+                cursor.execute(sql, [douban_id, smresponse['data']['url'], smresponse['data']['delete']])
+                db.commit()
+            except:
+                db.rollback()
+        return smresponse['data']['url']
     else:
         return result[0]
